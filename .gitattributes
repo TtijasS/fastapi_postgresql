@@ -1,0 +1,8 @@
+# Keep scripts & docker-related files LF on every OS
+*.sh      text eol=lf
+Dockerfile text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+
+# (optional) also keep Python as LF
+*.py      text eol=lf
