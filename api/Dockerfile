@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 # Copy app code and entrypoint
 COPY app/ /app/
 COPY api/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

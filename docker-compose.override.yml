@@ -1,0 +1,7 @@
+# docker-compose.override.yml
+services:
+  api:
+    volumes:
+      - ./app/app:/app/app
+      - ./app/alembic:/app/alembic
+      - ./app/alembic.ini:/app/alembic.ini

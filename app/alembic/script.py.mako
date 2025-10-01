@@ -17,7 +17,7 @@ branch_labels: Union[str, Sequence[str], None] = ${repr(branch_labels)}
 depends_on: Union[str, Sequence[str], None] = ${repr(depends_on)}
 
 def upgrade() -> None:
-    pass
+    ${upgrades if upgrades else "pass"}
 
 def downgrade() -> None:
-    pass
+    ${downgrades if downgrades else "pass"}

@@ -1,13 +1,11 @@
 from __future__ import annotations
-from fastapi import FastAPI, Depends
-from sqlalchemy.orm import Session
 
+from fastapi import FastAPI, Depends
+from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from . import models, schemas
 from .database import get_db
-
-
 
 app = FastAPI(title="FastAPI + Postgres Template")
 
@@ -71,5 +69,82 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db)):
     if not c:
         raise HTTPException(status_code=404, detail="Not found")
     db.delete(c)
+    db.commit()
+    return None
+
+@app.post("/orders", response_model=schemas.OrderRead, tags=["orders"])
+def create_order(payload: schemas.OrderCreate, db: Session = Depends(get_db)):
+    customer = db.get(models.Customer, payload.customer_id)
+    if not customer:
+        raise HTTPException(status_code=400, detail=f"Customer '{payload.customer_id}' not found")
+    
+    order = models.Order(**payload.model_dump())
+    db.add(order)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Failed to commit the db with new order")
+    db.refresh(order)
+
+    return order
+
+@app.get("/orders", response_model=list[schemas.OrderRead], tags=["orders"])
+def list_orders(db: Session = Depends(get_db)):
+    return db.query(models.Order).order_by(models.Order.id.desc()).all()
+
+@app.post("/stores", response_model=schemas.StoreRead, tags=["stores"])
+def create_store(payload: schemas.StoreCreate, db: Session = Depends(get_db)):
+    store = models.Store(name=payload.name, location=payload.location)
+
+    if payload.item_ids:
+        items = db.query(models.Item).filter(models.Item.id.in_(payload.item_ids)).all()
+        if len(items) != len(set(payload.item_ids)):
+            missing = set(payload.item_ids) - {i.id for i in items}
+            raise HTTPException(status_code=400, detail=f"Unknown item ids: {sorted(missing)}")
+        store.items = items
+
+    db.add(store)
+    db.commit()
+    db.refresh(store)
+    return store
+
+@app.get("/stores", response_model=list[schemas.StoreRead], tags=["stores"])
+def list_stores(db: Session = Depends(get_db)):
+    return (
+        db.query(models.Store).options(joinedload(models.Store.items)).order_by(models.Store.id.desc()).all()
+    )
+
+@app.get("/stores/{store_id}", response_model=schemas.StoreRead, tags=["stores"])
+def get_store(store_id: int, db: Session = Depends(get_db)):
+    store = (
+        db.query(models.Store).options(joinedload(models.Store.items)).filter(models.Store.id == store_id).first()
+    )
+    if not store:
+        raise HTTPException(status_code=404, detail="Not found")
+    return store
+
+@app.put("/stores/{store_id}/items", response_model=schemas.StoreRead, tags=["stores"])
+def set_store_items(store_id: int, payload: schemas.StoreItemsUpdate, db: Session = Depends(get_db)):
+    store = db.get(models.Store, store_id)
+    if not store:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    items = db.query(models.Item).filter(models.Item.id.in_(payload.item_ids)).all()
+    if len(items) != len(set(payload.item_ids)):
+        missing = set(payload.item_ids) - {i.id for i in items}
+        raise HTTPException(status_code=400, detail=f"Unknown item ids: {sorted(missing)}")
+
+    store.items = items
+    db.commit()
+    db.refresh(store)
+    return store
+
+@app.delete("/stores/{store_id}", status_code=204, tags=["stores"])
+def delete_store(store_id: int, db: Session = Depends(get_db)):
+    store = db.get(models.Store, store_id)
+    if not store:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(store)
     db.commit()
     return None
